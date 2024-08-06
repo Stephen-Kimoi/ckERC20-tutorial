@@ -1,5 +1,5 @@
 [package]
-name = "ckETH_starter_backend"
+name = "cketh_starter_backend"
 version = "0.1.0"
 edition = "2021"
 

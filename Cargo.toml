@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "src/ckETH_starter_backend"
+    "src/cketh_starter_backend"
 ]
 resolver = "2"
