@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useAccount, useContractWrite, useWaitForTransaction } from 'wagmi'; 
-import { MinterHelper as contractAddress } from '../contracts/contracts-address.json'; 
-import { parseEther } from 'viem';
+import { MinterHelper as helperContractAddress } from '../contracts/contracts-address.json'; 
+import { parseUnits } from 'ethers/lib/utils';
 import abi from '../contracts/MinterHelper.json'
 import './Header.css'
-// import { cketh_tutorial_backend } from 'declarations/cketh_tutorial_backend'; 
 import { cketh_starter_backend } from '../../../../declarations/cketh_starter_backend';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
@@ -15,33 +14,73 @@ function Header() {
   const [canisterDepositAddress, setCanisterDepositAddress] = useState("");
   const [transactionHash, setTransactionHash] = useState("");
   const [verificationResult, setVerificationResult] = useState(null);
-  const [isVerifying, setIsVerifying] = useState(false); // State for loading
-  const [verificationError, setVerificationError] = useState(null); // State for error
-  
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verificationError, setVerificationError] = useState(null);
+
+  const SepoliaUSDCAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"; 
+
+  // Use a standard ERC20 ABI
+  const erc20ABI = [
+    {
+      "constant": false,
+      "inputs": [
+        {
+          "name": "_spender",
+          "type": "address"
+        },
+        {
+          "name": "_value",
+          "type": "uint256"
+        }
+      ],
+      "name": "approve",
+      "outputs": [
+        {
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "type": "function"
+    }
+  ];
+
   // Function for getting the deposit address
   const depositAddress = async () => {
     const depositAddress = await cketh_starter_backend.canister_deposit_principal();
-    console.log("Deposit Address: ", depositAddress);
     setCanisterDepositAddress(depositAddress);
   };
-  
-  // Function for calling the "deposit" function in the helper contract
-  const { write, data, isLoading: isWriteLoading } = useContractWrite({
-    address: contractAddress,
-    abi: abi,
-    functionName: "deposit",
-    value: parseEther(amount.toString()),
-    args: [canisterDepositAddress],
+
+  // Function for approving the helper contract to spend Sepolia USDC
+  const { write: approve, isLoading: isApproveLoading } = useContractWrite({
+    address: SepoliaUSDCAddress,
+    abi: erc20ABI, 
+    functionName: "approve",
+    args: [helperContractAddress, amount],
     onSuccess(data) {
-      toast.info("Sending ETH to the helper contract");
+      toast.info("Approval successful. You can now proceed with the deposit.");
+      console.log("Approval data is: ", data); 
     },
     onError(error) {
-      toast.error("Failed to send ETH");
+      toast.error("Approval failed");
       console.error(error);
     }
   });
-  
-  // Function for handling the deposit amount change
+
+  // Function for calling the "deposit" function in the helper contract
+  const { write: deposit, data, isLoading: isDepositLoading } = useContractWrite({
+    address: helperContractAddress,
+    abi: abi,
+    functionName: "deposit",
+    args: [SepoliaUSDCAddress, amount, canisterDepositAddress],
+    onSuccess(data) {
+      toast.info("Depositing Sepolia USDC");
+    },
+    onError(error) {
+      toast.error("Deposit failed");
+      console.error(error);
+    }
+  });
+
   const { isLoading: isTxLoading } = useWaitForTransaction({
     hash: data?.hash,
     onSuccess() {
@@ -53,29 +92,30 @@ function Header() {
       console.error(error);
     }
   });
-  
-  // Function for verifying the tansaction on chain
+
+  // Function for verifying the transaction on-chain
   const verifyTransaction = async (hash) => {
-    setIsVerifying(true); // Start loading
-    setVerificationError(null); // Reset error state
+    setIsVerifying(true);
+    setVerificationError(null);
 
     try {
       const result = await cketh_starter_backend.verify_transaction(hash);
-      setVerificationResult(result); // Store the verification result
+      setVerificationResult(result);
       toast.success("Transaction verified successfully");
     } catch (error) {
       setVerificationError("Verification failed. Please check the transaction hash and try again.");
       toast.error("Verification failed");
       console.error(error);
     } finally {
-      setIsVerifying(false); // Stop loading
+      setIsVerifying(false);
     }
   };
 
   const changeAmountHandler = (e) => {
     let amount = e.target.valueAsNumber;
     if (Number.isNaN(amount) || amount < 0) amount = 0;
-    setAmount(amount);
+    const usdcAmount = amount * Math.pow(10, 6); 
+    setAmount(usdcAmount);
   };
 
   const changeAddressHandler = (e) => {
@@ -89,9 +129,8 @@ function Header() {
   return (
     <div className='container'>
       <ToastContainer />
-      <h1 className='title'>ckSepoliaETH Tester</h1>
+      <h1 className='title'>ckSepoliaUSDC Tester</h1>
       
-      {/* Connected Wallet Address Section */}
       <div className='wallet-info'>
         {isConnected ? (
           <p>Connected Wallet: <strong>{address}</strong></p>
@@ -101,30 +140,32 @@ function Header() {
       </div>
 
       <button onClick={depositAddress} className='button'>Get Deposit Address</button>
+
       <div className='form'>
         <input 
           type="text" 
           value={canisterDepositAddress} 
           onChange={changeAddressHandler} 
           placeholder="Canister Deposit Address" 
-          disabled={isWriteLoading || isTxLoading}
+          disabled={isApproveLoading || isDepositLoading || isTxLoading}
           className='input'
         />
         <input 
           type="number" 
-          value={amount} 
           onChange={changeAmountHandler} 
           placeholder="Amount" 
-          disabled={isWriteLoading || isTxLoading}
+          disabled={isApproveLoading || isDepositLoading || isTxLoading}
           className='input'
         />
-        <button onClick={() => write()} disabled={isWriteLoading || isTxLoading} className='button'>
-          {(isWriteLoading || isTxLoading) ? 'Processing...' : 'Deposit'}
+        <button onClick={() => approve()} disabled={isApproveLoading || isDepositLoading || isTxLoading} className='button'>
+          {isApproveLoading ? 'Approving...' : 'Approve'}
         </button>
-        {(isWriteLoading || isTxLoading) && <div className="loading-indicator">Loading...</div>}
+        <button onClick={() => deposit()} disabled={isApproveLoading || isDepositLoading || isTxLoading} className='button'>
+          {isDepositLoading ? 'Processing...' : 'Deposit'}
+        </button>
+        {(isApproveLoading || isDepositLoading || isTxLoading) && <div className="loading-indicator">Loading...</div>}
       </div>
 
-      {/* New input for transaction hash */}
       <div className='form'>
         <input 
           type="text" 
@@ -140,7 +181,6 @@ function Header() {
         {isVerifying && <div className="loading-indicator">Verifying transaction...</div>}
       </div>
 
-      {/* Display verification result */}
       {verificationResult && (
         <div className='verification-result'>
           <h2>Verification Result:</h2>
@@ -148,7 +188,6 @@ function Header() {
         </div>
       )}
 
-      {/* Display verification error */}
       {verificationError && (
         <div className='error-message'>
           <p>{verificationError}</p>

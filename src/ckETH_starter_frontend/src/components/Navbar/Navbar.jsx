@@ -9,7 +9,7 @@ function Navbar({ openModal }) {
   return (
       <div className="navbar">
         <div className="logo">
-          <p>ckETH Tester</p>
+          <p>ckUSDC Tester</p>
         </div>
 
         {
