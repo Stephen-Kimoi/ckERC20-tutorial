@@ -1,6 +1,6 @@
-# ckETH Starter Template 
+# ckERC-20 Tutorial
 
-A ICP starter template that contains frontend configurations for calling an EVM Based smart contract - backend canister is in Rust
+This tutorial shows how you can intergrate ckERC-20 tokens on your dApp
 
 ## Prerequisites
 Before we begin, ensure you have the following:
@@ -10,11 +10,11 @@ Before we begin, ensure you have the following:
 - Basic knowledge of rust
 
 ## Getting started 
+You can clone the starter template that comes with the default EVM intergration on the frontend - and backend in Rust
+
 ```bash 
 git clone https://github.com/Stephen-Kimoi/starter-template.git
 ```
-
-Check out the [official documentation](https://github.com/Stephen-Kimoi/cketh-tutorial?tab=readme-ov-file#getting-started-with-cketh-a-step-by-step-guide) to get started 
 
 #### Note: We'll be implementing ckSepoliaUSDC for this tutorial
 
