@@ -121,4 +121,24 @@ async fn withdraw_ckusdc_to_ethereum(amount: Nat, eth_address: String) -> CallRe
     .unwrap()
 }
 
+#[ic_cdk::update] 
+async fn transfer_ckusdc_to_principal(amount: Nat, to: Principal) -> CallResult<BlockIndex> {
+    
+    let transfer_args = TransferArgs {
+        amount,
+        to_account: Account {
+            owner: to,
+            subaccount: None,
+        },
+    };
+    
+    InterCall::from(USDC_LEDGER).call(
+        "icrc1_transfer",
+        transfer_args,
+        CallCycles::NoPay
+    )
+    .await
+    .unwrap()
+}
+
 ic_cdk::export_candid!();
