@@ -3,14 +3,22 @@ use b3_utils::ledger::{ICRCAccount, ICRC1, ICRC2ApproveArgs, ICRC2ApproveResult}
 use b3_utils::api::{InterCall, CallCycles}; 
 use candid::{Nat, Principal, CandidType, Deserialize};
 use ic_cdk::api::call::CallResult;
+use canister_ids::{CanisterIdsResult, Token}; 
 
 use icrc_ledger_types::icrc1::account::Account;
 use icrc_ledger_types::icrc1::transfer::{BlockIndex, NumTokens, TransferArg, TransferError};
 use serde::Serialize;
 
-const CKETH_LEDGER: &str = "apia6-jaaaa-aaaar-qabma-cai";
-const CKETH_MINTER: &str = "jzenf-aiaaa-aaaar-qaa7q-cai";
-const USDC_LEDGER: &str = "yfumr-cyaaa-aaaar-qaela-cai"; 
+mod canister_ids;
+
+const CK_SEPOLIA_ETH_LEDGER: &str = "apia6-jaaaa-aaaar-qabma-cai";
+const CK_SEPOLIA_USDC_LEDGER_CANISTER: &str = "yfumr-cyaaa-aaaar-qaela-cai"; 
+const CK_SEPOLIA_USDC_INDEX_CANISTER: &str = "ycvkf-paaaa-aaaar-qaelq-cai"; 
+const CK_SEPOLIA_ETH_MINTER_CANISTER: &str = "jzenf-aiaaa-aaaar-qaa7q-cai"; 
+pub const CK_SEPOLIA_ERC20_LEDGER_SUITE_ORCHESTRATOR_CANISTER: &str = "2s5qh-7aaaa-aaaar-qadya-cai"; 
+
+const SEPOLIA_CHAIN_ID: &str = "11155111"; 
+const SEPOLIA_USDC_ADDRESS: &str = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"; 
 
 // Withdraw structs
 #[derive(candid::CandidType, serde::Deserialize)]
@@ -45,7 +53,7 @@ fn canister_deposit_principal() -> String {
 async fn check_ckusdc_balance(principal_id: Principal) -> Nat {
   let account = ICRCAccount::new(principal_id, None);
 
-  ICRC1::from(USDC_LEDGER).balance_of(account).await.unwrap()
+  ICRC1::from(CK_SEPOLIA_USDC_LEDGER_CANISTER).balance_of(account).await.unwrap()
 }
 
 #[ic_cdk::update] 
@@ -53,7 +61,7 @@ async fn approve_cketh_burning(user_principal: Principal, amount: Nat) -> ICRC2A
     let from_subaccount = Subaccount::from(user_principal);
     
     // Use the ckETH minter as the spender
-    let minter_principal = Principal::from_text(CKETH_MINTER).expect("Invalid minter principal");
+    let minter_principal = Principal::from_text(CK_SEPOLIA_ETH_MINTER_CANISTER).expect("Invalid minter principal");
     let spender = ICRCAccount::new(minter_principal, None);
 
     let approve_args = ICRC2ApproveArgs {
@@ -67,7 +75,7 @@ async fn approve_cketh_burning(user_principal: Principal, amount: Nat) -> ICRC2A
         memo: None 
     }; 
 
-    InterCall::from(CKETH_LEDGER).call(
+    InterCall::from(CK_SEPOLIA_ETH_LEDGER).call(
         "icrc2_approve", 
         approve_args, 
         CallCycles::NoPay
@@ -81,7 +89,7 @@ async fn approve_usdc_burning(user_principal: Principal, amount: Nat) -> ICRC2Ap
     let from_subaccount = Subaccount::from(user_principal);
     
     // Convert minter Principal to ICRCAccount
-    let minter_principal = Principal::from_text(CKETH_MINTER).expect("Invalid minter principal");
+    let minter_principal = Principal::from_text(CK_SEPOLIA_ETH_MINTER_CANISTER).expect("Invalid minter principal");
     let spender = ICRCAccount::new(minter_principal, None);
 
     let approve_args = ICRC2ApproveArgs {
@@ -95,7 +103,7 @@ async fn approve_usdc_burning(user_principal: Principal, amount: Nat) -> ICRC2Ap
         memo: None
     };
 
-    InterCall::from(USDC_LEDGER).call(
+    InterCall::from(CK_SEPOLIA_USDC_LEDGER_CANISTER).call(
         "icrc2_approve",
         approve_args,
         CallCycles::NoPay
@@ -107,12 +115,12 @@ async fn approve_usdc_burning(user_principal: Principal, amount: Nat) -> ICRC2Ap
 #[ic_cdk::update]
 async fn withdraw_ckusdc_to_ethereum(amount: Nat, eth_address: String) -> CallResult<WithdrawErc20Result> {
     let args = WithdrawErc20Args {
-        ckerc20_ledger_id: Principal::from_text(USDC_LEDGER).expect("Invalid USDC ledger principal"),
+        ckerc20_ledger_id: Principal::from_text(CK_SEPOLIA_USDC_LEDGER_CANISTER).expect("Invalid USDC ledger principal"),
         recipient: eth_address,
         amount,
     };
 
-    InterCall::from(CKETH_MINTER).call(
+    InterCall::from(CK_SEPOLIA_ETH_MINTER_CANISTER).call(
         "withdraw_erc20",
         args,
         CallCycles::NoPay
@@ -132,7 +140,7 @@ async fn transfer_ckusdc_to_principal(amount: Nat, to: Principal) -> CallResult<
         },
     };
     
-    InterCall::from(USDC_LEDGER).call(
+    InterCall::from(CK_SEPOLIA_USDC_LEDGER_CANISTER).call(
         "icrc1_transfer",
         transfer_args,
         CallCycles::NoPay
