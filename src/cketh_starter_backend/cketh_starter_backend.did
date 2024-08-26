@@ -1,1 +1,45 @@
-service : { canister_deposit_principal : () -> (text) query }
+type CanisterIdsResult = record {
+  ledger : opt principal;
+  index : opt principal;
+  archives : vec principal;
+};
+type ICRC2ApproveError = variant {
+  GenericError : record { message : text; error_code : nat };
+  TemporarilyUnavailable;
+  Duplicate : record { duplicate_of : nat };
+  BadFee : record { expected_fee : nat };
+  AllowanceChanged : record { current_allowance : nat };
+  CreatedInFuture : record { ledger_time : nat64 };
+  TooOld;
+  Expired : record { ledger_time : nat64 };
+  InsufficientFunds : record { balance : nat };
+};
+type RejectionCode = variant {
+  NoError;
+  CanisterError;
+  SysTransient;
+  DestinationInvalid;
+  Unknown;
+  SysFatal;
+  CanisterReject;
+};
+type Result = variant { Ok : nat; Err : ICRC2ApproveError };
+type Result_1 = variant { Ok : opt CanisterIdsResult; Err : text };
+type Result_2 = variant { Ok : nat; Err : record { RejectionCode; text } };
+type Result_3 = variant {
+  Ok : WithdrawErc20Result;
+  Err : record { RejectionCode; text };
+};
+type Token = variant { CkSepoliaUSDC; CkUSDC };
+type WithdrawErc20Result = record { block_index : nat };
+service : {
+  approve_cketh_burning : (principal, nat) -> (Result);
+  approve_usdc_burning : (principal, nat) -> (Result);
+  canister_deposit_principal : () -> (text) query;
+  check_ckusdc_balance : (principal) -> (nat);
+  get_canister_ids : (Token) -> (Result_1);
+  get_cksepoliausdc_canister_ids : () -> (Result_1);
+  get_ckusdc_canister_ids : () -> (Result_1);
+  transfer_ckusdc_to_principal : (nat, principal) -> (Result_2);
+  withdraw_ckusdc_to_ethereum : (nat, text) -> (Result_3);
+}

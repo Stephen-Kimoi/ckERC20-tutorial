@@ -2,6 +2,10 @@
 
 This tutorial shows how you can intergrate ckERC-20 tokens on your dApp
 
+## ckTokens Minter: 
+You can now easily mint ckSepoliaETH to your principal ID using this site - [Link](https://lqsjp-paaaa-aaaal-qjpsq-cai.icp0.io/)
+![ckTokens Minter](minter.png)
+
 ## Prerequisites
 Before we begin, ensure you have the following:
 
@@ -10,25 +14,28 @@ Before we begin, ensure you have the following:
 - Basic knowledge of rust
 
 ## Getting started 
-You can clone the starter template that comes with the default EVM intergration on the frontend - and backend in Rust
+The repo containing the full code can is [here](https://github.com/Stephen-Kimoi/cketh-tutorial) 
 
-```bash 
-git clone https://github.com/Stephen-Kimoi/starter-template.git
+Here's the file structure: 
 ```
+src|
+   ...
+   |_cketh_tutorial_frontend
+     ... 
+     |_src 
+       |_components
+         |_Header 
+           ...
+           |_CKSepoliaUSDC // Code is located here
+           ...
+```         
 
 #### Note: We'll be implementing ckSepoliaUSDC for this tutorial
 
-## Important Links/Recources: 
-1. Sepolia USDC from the faucet - [Link](https://faucet.circle.com/)
-2. Sepolia USDC Contract Address - [Link](https://sepolia.etherscan.io/token/0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238)
-3. ckSepoliaUSDC Helper Contract Address - [Link](https://sepolia.etherscan.io/address/0x70e02Abf44E62Da8206130Cd7ca5279a8F6d6241)
-4. USDC_LEDGER: ``"2s5qh-7aaaa-aaaar-qadya-cai"``; 
-5. ckETH_MINTER: ``"jzenf-aiaaa-aaaar-qaa7q-cai"``;
-
-## Frontend Logic: 
+## Frontend Logic Documentation
 
 ### 1. `SepoliaUSDCAddress`
-The `SepoliaUSDCAddress` is a constant that stores the address of the Sepolia USDC contract on the Ethereum network. This address is used for interacting with the USDC contract, such as approving the helper contract to spend tokens on behalf of the user.
+The `SepoliaUSDCAddress` is a constant that stores the Ethereum contract address for the Sepolia USDC token. This address is crucial for interacting with the USDC contract, such as when approving transactions or making deposits.
 
 **Code Example**
 ```javascript
@@ -36,7 +43,7 @@ const SepoliaUSDCAddress = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 ```
 
 ### 2. `erc20ABI`
-This array defines the Application Binary Interface (ABI) for interacting with the ERC20 `approve` function. The `approve` function allows a spender to withdraw from the caller's account multiple times, up to the specified amount.
+This array defines the Application Binary Interface (ABI) for interacting with the ERC20 `approve` function. The `approve` function allows a spender (typically another contract) to withdraw tokens from the user's account, up to a specified amount.
 
 **Code Example**
 ```javascript
@@ -65,82 +72,181 @@ const erc20ABI = [
 ];
 ```
 
-### 3. `depositAddress`
-This function retrieves the deposit address from the backend canister on the Internet Computer. This address is used to deposit Sepolia USDC tokens.
+### 3. `ckSepoliaUSDCID`
+The `ckSepoliaUSDCID` function fetches the canister IDs (Ledger and Minter) for the ckSepoliaUSDC tokens from the backend canister on the Internet Computer. These IDs are necessary for managing and minting ckSepoliaUSDC tokens.
+
+**Code Example**
+```javascript
+const ckSepoliaUSDCID = async () => {
+  const ledgerCanisterID = await cketh_tutorial_backend.ck_sepolia_usdc_ledger_canister_id();
+  setSepoliaUSDCLedgerid(ledgerCanisterID); 
+
+  const minterCanisterID = await cketh_tutorial_backend.ck_sepolia_eth_minter_canister_id();
+  setSepoliaUSDCMinterid(minterCanisterID); 
+};
+```
+
+### 4. `depositAddress`
+The `depositAddress` function retrieves the deposit address (in Byte32 format) from the backend canister. This address is required for depositing Sepolia USDC tokens.
 
 **Code Example**
 ```javascript
 const depositAddress = async () => {
-  const depositAddress = await cketh_starter_backend.canister_deposit_principal();
+  const depositAddress = await cketh_tutorial_backend.canister_deposit_principal();
   setCanisterDepositAddress(depositAddress);
 };
 ```
 
-### 4. `approve`
-This function allows the helper contract to spend a specified amount of Sepolia USDC on behalf of the user. It utilizes the `useContractWrite` hook from `wagmi` to interact with the Sepolia USDC contract’s `approve` function.
+### 5. `approveSepoliaUSDC`
+The `approveSepoliaUSDC` function allows the helper contract to spend a specified amount of Sepolia USDC on behalf of the user. It uses the `ethers.js` library to interact with the USDC contract’s `approve` function.
 
 **Code Example**
 ```javascript
-const { write: approve, isLoading: isApproveLoading } = useContractWrite({
-  address: SepoliaUSDCAddress,
-  abi: erc20ABI,
-  functionName: "approve",
-  args: [helperContractAddress, amount],
-  onSuccess(data) {
-    toast.info("Approval successful. You can now proceed with the deposit.");
-    console.log("Approval data is: ", data);
-  },
-  onError(error) {
+const approveSepoliaUSDC = async () => {
+  setIsApproveLoading(true);
+  try {
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const contract = new ethers.Contract(SepoliaUSDCAddress, erc20ABI, signer);
+
+    const amountInSmallestUnit = ethers.utils.parseUnits(amount.toString(), 6);
+  
+    const tx = await contract.approve(MinterHelper.SepoliaUSDCHelper, amountInSmallestUnit);
+    toast.info("Approving helper contract to spend Sepolia USDC");
+    await tx.wait();
+    toast.success("Approval successful. You can now proceed with the deposit.");
+    console.log("Approval transaction data: ", tx);
+  } catch (error) {
     toast.error("Approval failed");
     console.error(error);
-  }
-});
-```
-
-### 5. `deposit` 
-This deposit function calls the `deposit` method of the helper contract to deposit Sepolia USDC tokens from the user's wallet to the canister deposit address. It also uses the `useContractWrite` hook from `wagmi`.
-
-**Code Example**
-```javascript
-const { write: deposit, data, isLoading: isDepositLoading } = useContractWrite({
-  address: helperContractAddress,
-  abi: abi,
-  functionName: "deposit",
-  args: [SepoliaUSDCAddress, amount, canisterDepositAddress],
-  onSuccess(data) {
-    toast.info("Depositing Sepolia USDC");
-  },
-  onError(error) {
-    toast.error("Deposit failed");
-    console.error(error);
-  }
-});
-```
-
-### 6. `verifyTransaction`
-This function verifies a transaction on the Ethereum blockchain by interacting with the backend canister on the Internet Computer. It checks whether the transaction was successfully recorded on-chain.
-
-**Code Example**
-```javascript
-const verifyTransaction = async (hash) => {
-  setIsVerifying(true); // Start loading
-  setVerificationError(null); // Reset error state
-
-  try {
-    const result = await cketh_starter_backend.verify_transaction(hash);
-    setVerificationResult(result); // Store the verification result
-    toast.success("Transaction verified successfully");
-  } catch (error) {
-    setVerificationError("Verification failed. Please check the transaction hash and try again.");
-    toast.error("Verification failed");
-    console.error(error);
   } finally {
-    setIsVerifying(false); // Stop loading
+    setIsApproveLoading(false);
   }
 };
 ```
 
-## Step 1: Generating byte32 address from Principal ID
+### 6. `depositSepoliaUSDC`
+The `depositSepoliaUSDC` function first calls the `approveSepoliaUSDC` function to allow the helper contract to spend Sepolia USDC. Then, it deposits the approved tokens into the canister deposit address. The transaction hash is stored in the backend after a successful deposit.
+
+**Code Example**
+```javascript
+const depositSepoliaUSDC = async () => {
+  if (!walletConnected) {
+    toast.error("Wallet not connected");
+    return;
+  }
+
+  setIsDepositLoading(true);
+  try {
+    await approveSepoliaUSDC();
+  
+    const amountInSmallestUnit = ethers.utils.parseUnits(amount.toString(), 6);
+  
+    const provider = new ethers.providers.Web3Provider(window.ethereum);
+    const signer = provider.getSigner();
+    const contract = new ethers.Contract(MinterHelper.SepoliaUSDCHelper, abi, signer);
+  
+    const tx = await contract.deposit(SepoliaUSDCAddress, amountInSmallestUnit, canisterDepositAddress);
+  
+    toast.info("Depositing Sepolia USDC");
+    await tx.wait();
+    toast.success("Deposit successful");
+
+    toast.info("Storing transaction hash...");
+    await cketh_tutorial_backend.store_ck_sepolia_usdc_hash(tx.hash);
+    toast.success("Transaction hash stored");
+
+    fetchTransactionHashes();
+  } catch (error) {
+    toast.error("Operation failed");
+    console.error(error);
+  } finally {
+    setIsDepositLoading(false);
+  }
+};
+```
+
+### 7. `fetchTransactionHashes`
+The `fetchTransactionHashes` function retrieves and displays the stored transaction hashes for Sepolia USDC deposits. This allows users to track their previous transactions.
+
+**Code Example**
+```javascript
+const fetchTransactionHashes = async () => {
+  try {
+    const hashes = await cketh_tutorial_backend.get_ck_sepolia_usdc_hashes();
+    setTransactionHashes(hashes);
+  } catch (error) {
+    toast.error("Failed to fetch transaction hashes");
+    console.error(error);
+  }
+};
+```
+
+### 8. `getReceipt`
+The `getReceipt` function retrieves the transaction receipt for a given transaction hash by interacting with the backend. This receipt contains details about the transaction.
+
+**Code Example**
+```javascript
+const getReceipt = async (hash) => {
+  setIsReceiptLoading(true);
+  try {
+    const receipt = await cketh_tutorial_backend.get_receipt(hash);
+    setSelectedReceipt(receipt);
+    toast.success("Transaction receipt fetched");
+  } catch (error) {
+    toast.error("Failed to fetch transaction receipt");
+    console.error(error);
+  } finally {
+    setIsReceiptLoading(false);
+  }
+};
+```
+
+### 9. `checkCkUSDCBalance`
+The `checkCkUSDCBalance` function retrieves the ckSepoliaUSDC balance for a given Principal ID from the backend canister.
+
+**Code Example**
+```javascript
+const checkCkUSDCBalance = async () => {
+  try {
+    setIsBalanceLoading(true);
+    const principal = Principal.fromText(balancePrincipalId);
+    const balance = await cketh_tutorial_backend.check_ckusdc_balance(principal);
+    setCkUSDCBalance(balance.toString());
+    toast.success("Balance fetched successfully");
+  } catch (error) {
+    toast.error("Failed to fetch balance");
+    console.error(error);
+  } finally {
+    setIsBalanceLoading(false);
+  }
+};
+```
+
+### 10. `generateByte32Address`
+The `generateByte32Address` function converts a given Principal ID to its corresponding Byte32 address, which is necessary for depositing ckSepoliaUSDC tokens.
+
+**Code Example**
+```javascript
+const generateByte32Address = async () => {
+  try {
+    setIsGenerateLoading(true);
+    const principal = Principal.fromText(generatePrincipalId);
+    const byte32Address = await cketh_tutorial_backend.convert_principal_to_byte32(principal);
+    setGeneratedByte32Address(byte32Address);
+    toast.success("Byte32 address generated successfully");
+  } catch (error) {
+    toast.error("Failed to generate byte32 address");
+    console.error(error);
+  } finally {
+    setIsGenerateLoading(false);
+  }
+};
+```
+
+## Backend Logic
+
+### Step 1: Generating byte32 address from Principal ID
 The first step is to create a function that converts a Principal ID into a byte32 address. This is necessary as it is the argument required for depositing ckUSDC.
 
 First of all you add the following dependency to ``Cargo.toml`` file inside the backend directory
@@ -162,22 +268,6 @@ fn canister_deposit_principal() -> String {
 }
 ```
 
-## Step 2: Minting ckUSDC tokens to the principal ID
-Once you have the deposit principal, the next step is to convert USDC to cUSDC tokens
-
-These are the steps to follow: 
-1. Submit an Ethereum transaction calling the ``approve`` function of the ERC-20 smart contract to allow the helper smart contract to withdraw some of the user's funds.
-![Calling approve function](approve.png)
-
-2. Call the ``deposit`` function of the [helper smart contract](https://sepolia.etherscan.io/address/0x70e02Abf44E62Da8206130Cd7ca5279a8F6d6241), specifying the following arguments: 
-  - ERC-20 contract
-  - How many ERC-20 tokens should be withdrawn from the user's account and, 
-  - The principal ID(in byte32 address format) that should be credited for the minted ckERC20 tokens
-![Calling deposit function](deposit.png)
-
-## Step 3: Fetching the canister's ckUSDC Balance
-We will need to import the following structs from the ``b3_utils::ledger`` and ``b3_utils::api`` dependencies:
-
 ```rust 
 use b3_utils::ledger::{ICRCAccount, ICRC1, ICRC1TransferArgs, ICRC1TransferResult};
 use b3_utils::api::{InterCall, CallCycles}; 
@@ -186,7 +276,7 @@ use b3_utils::api::{InterCall, CallCycles};
 We also define the ``LEDGER`` canister ID that is responsible for storing balances of the pricipal IDs
 
 ```rust 
-const USDC_LEDGER: &str = "2s5qh-7aaaa-aaaar-qadya-cai"; 
+const USDC_LEDGER: &str = "yfumr-cyaaa-aaaar-qaela-cai"; 
 ```
 
 Now let's insert the function for checking the balance 
@@ -199,7 +289,7 @@ async fn balance(principal_id: Principal) -> Nat {
 }
 ```
 
-## Step 4: Converting ckUSDC tokens back to USDC:
+## Step 2: Converting ckUSDC tokens back to USDC:
 We define the ``ckETH MINTER`` and ``ckETH LEDGER`` canister IDs. This is because we'llneed to approve the ``ckETH Minter`` to burn some of the user's ``ckETH`` tokens as payment for transaction fees
 
 ```rust 
@@ -320,4 +410,4 @@ async fn withdraw_ckusdc_to_ethereum(amount: Nat, eth_address: String) -> Withdr
 - Official ckERC20 Documentation - [Link](https://internetcomputer.org/docs/current/developer-docs/multi-chain/chain-key-tokens/ckerc20/overview)
 - Ledger Suit Orchestrator Documentation - [Link](https://github.com/dfinity/ic/tree/master/rs/ethereum/ledger-suite-orchestrator)
 - ckERC20 GitHub Page - [Link](https://github.com/dfinity/ic/blob/master/rs/ethereum/cketh/docs/ckerc20.adoc)
-- 
+- ckSepoliaUSDC Dashboard - [Link](https://dashboard.internetcomputer.org/sepoliaeth/yfumr-cyaaa-aaaar-qaela-cai)
